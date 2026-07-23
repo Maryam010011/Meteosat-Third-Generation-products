@@ -77,29 +77,18 @@ class MTGProductPipeline:
         """Safely extract raw array from Satpy scene, handle NaNs, and resize to target resolution."""
         raw = scn[channel_name].values.astype(np.float32)
         is_ir = 'ir' in channel_name
+        fill_val = 200.0 if is_ir else 0.0
         
-        # Space / off-disk values or invalid sensor pixels
-        valid_mask = ~np.isnan(raw)
-        if is_ir:
-            valid_mask = valid_mask & (raw > 150.0) & (raw < 400.0)
-            fill_val = 200.0
-        else:
-            valid_mask = valid_mask & (raw >= 0.0)
-            fill_val = 0.0
-            
-        clean_raw = np.where(valid_mask, raw, fill_val)
-        
-        # High quality PIL bilinear resizing
-        img_pil = Image.fromarray(clean_raw)
-        img_res = img_pil.resize((self.target_w, self.target_h), resample=Image.Resampling.BILINEAR)
+        clean_raw = np.nan_to_num(raw, nan=fill_val)
+        img_res = Image.fromarray(clean_raw).resize((self.target_w, self.target_h), resample=Image.Resampling.BILINEAR)
         arr_res = np.array(img_res, dtype=np.float32)
         
-        # Re-apply off-disk space mask
-        mask_pil = Image.fromarray(valid_mask.astype(np.uint8))
-        mask_res = np.array(mask_pil.resize((self.target_w, self.target_h), resample=Image.Resampling.NEAREST)) > 0
-        
-        final_arr = np.where(mask_res, arr_res, np.nan)
-        return final_arr
+        if is_ir:
+            arr_res[arr_res < 150.0] = np.nan
+        else:
+            arr_res[arr_res <= 0.01] = np.nan
+            
+        return arr_res
 
     def load_channels(self, cycle_files):
         """Load and extract 4 spectral channels from NetCDF via Satpy."""
