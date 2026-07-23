@@ -76,7 +76,7 @@ class MTGProductPipeline:
     def _extract_and_resize(self, scn, channel_name):
         """Safely extract raw array from Satpy scene, handle NaNs, and resize to target resolution."""
         raw = scn[channel_name].values.astype(np.float32)
-        is_ir = 'ir' in channel_name
+        is_ir = channel_name.startswith('ir_')
         fill_val = 200.0 if is_ir else 0.0
         
         clean_raw = np.nan_to_num(raw, nan=fill_val)
