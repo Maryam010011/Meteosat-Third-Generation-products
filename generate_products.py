@@ -239,6 +239,507 @@ class MTGProductPipeline:
             })
             return False
 
+    def generate_235_rgb_composites(self):
+        """Generate 235 additional RGB composites across 10 thematic groups.
+        All saved to rgb_composites/ directory. Groups:
+          A: Gamma & Stretch Variants         (24)
+          B: Inverted & Complementary         (24)
+          C: Threshold Masked Overlays        (24)
+          D: Band Difference RGB Recipes      (24)
+          E: Multi-Level Gamma Microphysics   (24)
+          F: IR-Dominated Thermal             (24)
+          G: Sandwich & Blended Hybrids       (24)
+          H: Spectral Ratio RGB               (23)
+          I: Multi-Temporal Differential      (24)
+          J: Enhanced Aesthetic Composites    (20)
+        """
+        cat = 'rgb_composites'
+        t_start = time.time()
+        count_success = 0
+        total_attempted = 0
+
+        vis06 = self.channels_data['vis_06']
+        nir22 = self.channels_data['nir_22']
+        ir38  = self.channels_data['ir_38']
+        ir105 = self.channels_data['ir_105']
+        diff_38_105 = ir38 - ir105
+        ir38_solar  = np.clip((ir38 - 250.0) / 70.0 * 100.0, 0, 100)
+        ndvi_proxy  = (nir22 - vis06) / (nir22 + vis06 + 1e-5)
+        ndsi_proxy  = (vis06 - nir22) / (vis06 + nir22 + 1e-5)
+        optical_dep = np.clip((vis06 + 1.0) / (nir22 + 1.0), 0, 8)
+
+        def norm(arr, vmin, vmax, gamma=1.0):
+            val = np.clip((arr - vmin) / (vmax - vmin + 1e-6), 0.0, 1.0)
+            if gamma != 1.0:
+                val = np.power(val, 1.0 / gamma)
+            return val
+
+        print(f"\n[EXT] Generating 235 extended RGB composites...")
+
+        # ================================================================
+        # GROUP A — GAMMA & STRETCH VARIANTS (24 composites)
+        # Natural Color, Day Microphysics, Convection with varied gamma
+        # ================================================================
+        gamma_steps = [0.5, 0.7, 0.9, 1.2, 1.5, 1.8, 2.2, 2.5]
+
+        # A1–A8: Natural Color gamma sweep (R: NIR2.2, G: VIS0.6, B: VIS0.6)
+        for i, g in enumerate(gamma_steps, 1):
+            total_attempted += 1
+            r = norm(nir22, 0, 90, gamma=g)
+            gch = norm(vis06, 0, 100, gamma=g)
+            b = norm(vis06, 0, 100, gamma=g)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"Natural Color RGB — Gamma {g:.1f}", cat,
+                               f"grpA_natural_gamma{str(g).replace('.','p')}.png",
+                               ['nir_22','vis_06'], is_rgb=True,
+                               rgb_formula=f"R:NIR2.2 G:VIS0.6 B:VIS0.6 | γ={g}"):
+                count_success += 1
+
+        # A9–A16: Day Microphysics gamma sweep (R: VIS0.6, G: NIR2.2, B: IR10.5 inv)
+        for i, g in enumerate(gamma_steps, 1):
+            total_attempted += 1
+            r = norm(vis06, 0, 100, gamma=g)
+            gch = norm(nir22, 0, 60, gamma=g)
+            b = norm(323.0 - ir105, 0, 120, gamma=g)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"Day Microphysics RGB — Gamma {g:.1f}", cat,
+                               f"grpA_daymic_gamma{str(g).replace('.','p')}.png",
+                               ['vis_06','nir_22','ir_105'], is_rgb=True,
+                               rgb_formula=f"R:VIS0.6 G:NIR2.2 B:IR10.5_inv | γ={g}"):
+                count_success += 1
+
+        # A17–A24: Convection proxy stretch sweep (varying vmin/vmax)
+        stretch_pairs = [(0,80),(0,90),(0,100),(5,85),(5,95),(10,90),(10,100),(15,100)]
+        for i, (vlo, vhi) in enumerate(stretch_pairs, 1):
+            total_attempted += 1
+            r = norm(vis06, vlo, vhi)
+            gch = norm(320.0 - ir105, 0, 110)
+            b = norm(diff_38_105, -5, 15)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"Convection RGB — VIS Stretch [{vlo}–{vhi}%]", cat,
+                               f"grpA_conv_stretch{vlo}_{vhi}.png",
+                               ['vis_06','ir_105','ir_38'], is_rgb=True,
+                               rgb_formula=f"R:VIS0.6[{vlo}-{vhi}%] G:IR10.5_inv B:IR3.8-IR10.5"):
+                count_success += 1
+
+        # ================================================================
+        # GROUP B — INVERTED & COMPLEMENTARY PALETTES (24 composites)
+        # Swap channel assignments across existing recipes
+        # ================================================================
+
+        # B1–B3: Natural Color band swap permutations
+        for i, (rc, gc, bc, label) in enumerate([
+            (vis06, nir22, nir22, 'B01_natcol_GBswap'),
+            (vis06, vis06, nir22, 'B02_natcol_RGswap'),
+            (nir22, nir22, vis06, 'B03_natcol_RGBperm'),
+        ], 1):
+            total_attempted += 1
+            r = norm(rc, 0, 100); gch = norm(gc, 0, 100); b = norm(bc, 0, 100)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"Natural Color Swap Variant {i}", cat,
+                               f"grp{label}.png", ['vis_06','nir_22'], is_rgb=True,
+                               rgb_formula=f"Complementary channel swap #{i}"):
+                count_success += 1
+
+        # B4–B9: Inverted IR channels (cold = bright)
+        ir_inv_combos = [
+            (320-ir105, 320-ir38,  vis06,  'B04_irinv_both_vis', 'R:IR10.5_inv G:IR3.8_inv B:VIS0.6'),
+            (320-ir105, vis06,     nir22,  'B05_irinv105_vis_nir','R:IR10.5_inv G:VIS0.6 B:NIR2.2'),
+            (320-ir38,  vis06,     nir22,  'B06_irinv38_vis_nir', 'R:IR3.8_inv G:VIS0.6 B:NIR2.2'),
+            (vis06,     320-ir105, nir22,  'B07_vis_irinv105_nir','R:VIS0.6 G:IR10.5_inv B:NIR2.2'),
+            (nir22,     320-ir38,  vis06,  'B08_nir_irinv38_vis', 'R:NIR2.2 G:IR3.8_inv B:VIS0.6'),
+            (nir22,     vis06,     320-ir105,'B09_nir_vis_irinv105','R:NIR2.2 G:VIS0.6 B:IR10.5_inv'),
+        ]
+        for rc, gc, bc, fname, formula in ir_inv_combos:
+            total_attempted += 1
+            r = norm(rc, 0, 120); gch = norm(gc, 0, 120); b = norm(bc, 0, 120)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"Inverted IR Composite — {formula[:20]}", cat,
+                               f"grp{fname}.png", ['vis_06','nir_22','ir_38','ir_105'], is_rgb=True,
+                               rgb_formula=formula):
+                count_success += 1
+
+        # B10–B15: Night Microphysics permutations
+        night_combos = [
+            (diff_38_105, ir105, ir38,      'B10_nmic_perm1','R:ΔBT G:IR10.5 B:IR3.8'),
+            (ir38,        diff_38_105, ir105,'B11_nmic_perm2','R:IR3.8 G:ΔBT B:IR10.5'),
+            (ir105,       ir38, diff_38_105,'B12_nmic_perm3','R:IR10.5 G:IR3.8 B:ΔBT'),
+            (diff_38_105, ir38, ir105,      'B13_nmic_perm4','R:ΔBT G:IR3.8 B:IR10.5'),
+            (ir105,       diff_38_105, ir38,'B14_nmic_perm5','R:IR10.5 G:ΔBT B:IR3.8'),
+            (ir38,        ir105, diff_38_105,'B15_nmic_perm6','R:IR3.8 G:IR10.5 B:ΔBT'),
+        ]
+        for rc, gc, bc, fname, formula in night_combos:
+            total_attempted += 1
+            r = norm(rc, 185, 340); gch = norm(gc, 185, 340); b = norm(bc, -10, 30)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"Night Microphysics Permutation — {formula[:25]}", cat,
+                               f"grp{fname}.png", ['ir_38','ir_105'], is_rgb=True,
+                               rgb_formula=formula):
+                count_success += 1
+
+        # B16–B24: Wide stretch permutations (9 combos)
+        wide_combos = [
+            (vis06,0,100, nir22,0,70, 320-ir105,0,130, 'B16_wide_vnircinv','VIS/NIR/IR10inv'),
+            (vis06,0,100, 320-ir38,0,130, nir22,0,70,  'B17_wide_vir38invn','VIS/IR3inv/NIR'),
+            (nir22,0,70,  vis06,0,100, 320-ir38,0,130, 'B18_wide_nv38inv',  'NIR/VIS/IR3inv'),
+            (nir22,0,70,  320-ir105,0,130, vis06,0,100,'B19_wide_nir10invv','NIR/IR10inv/VIS'),
+            (320-ir105,0,130, vis06,0,100, nir22,0,70, 'B20_wide_ir10invvn','IR10inv/VIS/NIR'),
+            (320-ir38,0,130, nir22,0,70, vis06,0,100,  'B21_wide_ir38invnv','IR3inv/NIR/VIS'),
+            (vis06,0,100, 320-ir105,0,130, 320-ir38,0,130,'B22_wide_v2irinv','VIS/IR10inv/IR3inv'),
+            (320-ir38,0,130, 320-ir105,0,130, vis06,0,100,'B23_wide_2irinv_v','IR3inv/IR10inv/VIS'),
+            (320-ir105,0,130, 320-ir38,0,130, nir22,0,70,'B24_wide_2irinv_n','IR10inv/IR3inv/NIR'),
+        ]
+        for rv, rmin, rmax, gv, gmin, gmax, bv, bmin, bmax, fname, formula in wide_combos:
+            total_attempted += 1
+            r = norm(rv, rmin, rmax); gch = norm(gv, gmin, gmax); b = norm(bv, bmin, bmax)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"Wide Stretch Complement — {formula}", cat,
+                               f"grp{fname}.png", ['vis_06','nir_22','ir_38','ir_105'], is_rgb=True,
+                               rgb_formula=formula):
+                count_success += 1
+
+        # ================================================================
+        # GROUP C — THRESHOLD MASKED OVERLAYS (24 composites)
+        # ================================================================
+        cloud_m  = (ir105 < 273.15).astype(np.float32)
+        fire_m   = (ir38 > 310.0).astype(np.float32)
+        snow_m   = (ndsi_proxy > 0.4).astype(np.float32)
+        deep_m   = (ir105 < 220.0).astype(np.float32)
+        ocean_m  = (vis06 < 8.0).astype(np.float32)
+        warm_sfc = (ir38 > 300.0).astype(np.float32)
+
+        masks = [
+            (cloud_m, 'cloud'), (fire_m, 'fire'), (snow_m, 'snow'),
+            (deep_m, 'deep_conv'), (ocean_m, 'ocean'), (warm_sfc, 'warm_sfc'),
+        ]
+        base_combos_c = [
+            (vis06, nir22, ir38_solar, ['vis_06','nir_22','ir_38'], 'VIS_NIR_SolarIR'),
+            (vis06, nir22, 320-ir105,  ['vis_06','nir_22','ir_105'],'VIS_NIR_IR10inv'),
+            (nir22, vis06, diff_38_105,['nir_22','vis_06','ir_38','ir_105'],'NIR_VIS_dBT'),
+            (vis06, diff_38_105, nir22,['vis_06','ir_38','ir_105','nir_22'],'VIS_dBT_NIR'),
+        ]
+
+        c_count = 0
+        for mi, (mask, mname) in enumerate(masks):
+            for bi, (rc, gc, bc, chans, blabel) in enumerate(base_combos_c):
+                if c_count >= 24:
+                    break
+                total_attempted += 1
+                c_count += 1
+                r_m = norm(rc,  0, 110) * mask + norm(rc,  0, 110) * 0.3 * (1-mask)
+                g_m = norm(gc,  0, 110) * mask + norm(gc,  0, 110) * 0.3 * (1-mask)
+                b_m = norm(bc, -10, 120) * mask + norm(bc, -10, 120) * 0.3 * (1-mask)
+                rgb = np.dstack([r_m, g_m, b_m])
+                if self.render_map(rgb, f"Masked Overlay — {mname} × {blabel}", cat,
+                                   f"grpC_mask_{mname}_{bi+1:02d}.png",
+                                   chans, is_rgb=True,
+                                   rgb_formula=f"{blabel} masked by {mname}"):
+                    count_success += 1
+            if c_count >= 24:
+                break
+
+        # ================================================================
+        # GROUP D — BAND DIFFERENCE RGB RECIPES (24 composites)
+        # ================================================================
+        diff_pairs = [
+            (diff_38_105, 'ΔBT(3.8-10.5)', -15, 25),
+            (nir22 - vis06, 'NIR-VIS',       -30, 50),
+            (vis06 - nir22, 'VIS-NIR',       -50, 80),
+            (ndvi_proxy,    'NDVI',           -0.5, 0.8),
+            (ndsi_proxy,    'NDSI',           -0.5, 0.9),
+            (optical_dep,   'OptDepth',        0.5, 6.0),
+            (ir38_solar,    'IR3.8solar',       0, 100),
+            (320-ir105,     'IR10.5inv',        0, 130),
+        ]
+        base_single = [
+            (vis06, 'VIS0.6', 0, 100),
+            (nir22, 'NIR2.2', 0, 70),
+            (ir105, 'IR10.5', 200, 320),
+        ]
+        d_count = 0
+        for di, (d1, d1n, d1lo, d1hi) in enumerate(diff_pairs):
+            for si, (s1, s1n, s1lo, s1hi) in enumerate(base_single):
+                if d_count >= 24:
+                    break
+                total_attempted += 1
+                d_count += 1
+                r = norm(d1, d1lo, d1hi)
+                gch = norm(s1, s1lo, s1hi)
+                b = norm(d1, d1lo, d1hi, gamma=0.7)
+                rgb = np.dstack([r, gch, b])
+                tag = f"{d1n.replace(' ','_')}_{s1n.replace('.','')}"
+                if self.render_map(rgb, f"Diff RGB — R:{d1n} G:{s1n} B:{d1n}(γ0.7)", cat,
+                                   f"grpD_diff_{d_count:02d}_{tag[:20]}.png",
+                                   ['vis_06','nir_22','ir_38','ir_105'], is_rgb=True,
+                                   rgb_formula=f"R:{d1n}[{d1lo},{d1hi}] G:{s1n} B:{d1n}γ0.7"):
+                    count_success += 1
+            if d_count >= 24:
+                break
+
+        # ================================================================
+        # GROUP E — MULTI-LEVEL GAMMA MICROPHYSICS FAMILY (24 composites)
+        # ================================================================
+        # 3 bands × 8 gamma presets (R fixed γ=1.0, sweep G and B gammas)
+        g_sweeps_e = [
+            (1.0, 0.5, 0.5), (1.0, 0.5, 1.5), (1.0, 0.5, 2.5),
+            (1.0, 1.0, 0.5), (1.0, 1.0, 1.5), (1.0, 1.0, 2.5),
+            (1.0, 1.5, 0.5), (1.0, 1.5, 2.5),
+            (1.5, 0.5, 0.5), (1.5, 0.5, 1.0), (1.5, 0.5, 2.0),
+            (1.5, 1.0, 0.5), (1.5, 1.0, 2.5), (1.5, 2.0, 0.5),
+            (1.5, 2.0, 1.0), (1.5, 2.5, 0.5),
+            (2.0, 0.5, 0.5), (2.0, 0.5, 1.5), (2.0, 1.0, 0.5),
+            (2.0, 1.5, 0.5), (2.0, 2.0, 0.5), (2.0, 2.5, 1.0),
+            (2.5, 0.5, 1.0), (2.5, 1.5, 0.5),
+        ]
+        for ei, (gr, gg, gb) in enumerate(g_sweeps_e, 1):
+            total_attempted += 1
+            r = norm(vis06, 0, 100, gamma=gr)
+            gch = norm(nir22, 0, 60, gamma=gg)
+            b = norm(323.0 - ir105, 0, 120, gamma=gb)
+            rgb = np.dstack([r, gch, b])
+            label = f"γR={gr} γG={gg} γB={gb}"
+            if self.render_map(rgb, f"Day Microphysics Multi-Gamma — {label}", cat,
+                               f"grpE_daymic_mg{ei:02d}_gr{str(gr).replace('.','p')}_gg{str(gg).replace('.','p')}_gb{str(gb).replace('.','p')}.png",
+                               ['vis_06','nir_22','ir_105'], is_rgb=True,
+                               rgb_formula=f"DayMic | {label}"):
+                count_success += 1
+
+        # ================================================================
+        # GROUP F — IR-DOMINATED THERMAL COMPOSITES (24 composites)
+        # ================================================================
+        ir_combos_f = [
+            # (R_data,Rlo,Rhi, G_data,Glo,Ghi, B_data,Blo,Bhi, fname_tag, title)
+            (320-ir105,0,130, 320-ir38,0,130, diff_38_105,-15,25, 'F01','IR10inv/IR38inv/ΔBT'),
+            (ir105,200,320,   ir38,185,340,   diff_38_105,-15,25, 'F02','IR10/IR38/ΔBT'),
+            (ir38,185,340,    320-ir105,0,130,diff_38_105,-15,25, 'F03','IR38/IR10inv/ΔBT'),
+            (320-ir38,0,130,  ir105,200,320,  diff_38_105,-15,25, 'F04','IR38inv/IR10/ΔBT'),
+            (diff_38_105,-15,25,ir38,185,340, ir105,200,320,      'F05','ΔBT/IR38/IR10'),
+            (diff_38_105,-15,25,320-ir38,0,130,320-ir105,0,130,   'F06','ΔBT/IR38inv/IR10inv'),
+            (ir105,200,320,   diff_38_105,-15,25,320-ir38,0,130,  'F07','IR10/ΔBT/IR38inv'),
+            (320-ir105,0,130, diff_38_105,-15,25,ir38,185,340,    'F08','IR10inv/ΔBT/IR38'),
+            (ir38,185,340,    ir105,200,320,  320-ir38,0,130,     'F09','IR38/IR10/IR38inv'),
+            (320-ir38,0,130,  320-ir105,0,130,ir38,185,340,       'F10','IR38inv/IR10inv/IR38'),
+            (320-ir105,0,130, ir38,185,340,   320-ir105,0,130,    'F11','IR10inv/IR38/IR10inv'),
+            (ir38,185,340,    320-ir38,0,130, ir105,200,320,      'F12','IR38/IR38inv/IR10'),
+            # Ratio-enhanced
+            (ir38/np.where(ir105>0,ir105,1),0.6,1.1, 320-ir105,0,130, diff_38_105,-15,25,'F13','BT_ratio/IR10inv/ΔBT'),
+            (320-ir105,0,130, ir38/np.where(ir105>0,ir105,1),0.6,1.1, ir38,185,340,'F14','IR10inv/BT_ratio/IR38'),
+            (diff_38_105,-15,25,ir38/np.where(ir105>0,ir105,1),0.6,1.1,320-ir105,0,130,'F15','ΔBT/BT_ratio/IR10inv'),
+            (ir38,185,340, diff_38_105,-15,25, ir38/np.where(ir105>0,ir105,1),0.6,1.1,'F16','IR38/ΔBT/BT_ratio'),
+            # Cold-top emphasis (stretched 190–250K)
+            (320-ir105,70,130, 320-ir38,60,130, diff_38_105,-5,20,'F17','ColdTop_10inv/38inv/ΔBT'),
+            (320-ir105,70,130, diff_38_105,-5,20, ir38,185,270,   'F18','ColdTop_10inv/ΔBT/IR38'),
+            (320-ir38,60,130,  320-ir105,70,130, ir38,185,270,    'F19','ColdTop_38inv/10inv/IR38'),
+            (diff_38_105,-5,20,320-ir105,70,130, 320-ir38,60,130, 'F20','ColdTop_ΔBT/10inv/38inv'),
+            # Boundary layer (warm window 270–300K)
+            (ir105,270,300, ir38,275,320,   diff_38_105,-5,10,    'F21','BL_IR10/IR38/ΔBT'),
+            (ir38,275,320,  ir105,270,300,  diff_38_105,-5,10,    'F22','BL_IR38/IR10/ΔBT'),
+            (diff_38_105,-5,10,ir105,270,300,ir38,275,320,        'F23','BL_ΔBT/IR10/IR38'),
+            (ir105,270,300, diff_38_105,-5,10,ir38,275,320,       'F24','BL_IR10/ΔBT/IR38'),
+        ]
+        for rv,rlo,rhi, gv,glo,ghi, bv,blo,bhi, fname, formula in ir_combos_f:
+            total_attempted += 1
+            r = norm(rv, rlo, rhi); gch = norm(gv, glo, ghi); b = norm(bv, blo, bhi)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"IR Thermal Composite — {formula}", cat,
+                               f"grp{fname}_ir_thermal.png",
+                               ['ir_38','ir_105'], is_rgb=True,
+                               rgb_formula=formula):
+                count_success += 1
+
+        # ================================================================
+        # GROUP G — SANDWICH & BLENDED HYBRID COMPOSITES (24 composites)
+        # ================================================================
+        vis_base_g = np.clip(vis06 / 100.0, 0.0, 1.0)
+        vis_base_g_arr = np.dstack([vis_base_g]*3)
+
+        # G1–G10: VIS + jet-colored IR10.5, blend weights 0.1→1.0
+        blend_weights = np.linspace(0.1, 1.0, 10)
+        for gi, bw in enumerate(blend_weights, 1):
+            total_attempted += 1
+            ir_col = plt.cm.jet_r(norm(ir105, 200, 270))[:, :, :3]
+            cold_mask = np.clip((270.0 - ir105) / 70.0, 0.0, 1.0)[:, :, np.newaxis] * bw
+            rgb = np.clip((1.0 - cold_mask) * vis_base_g_arr + cold_mask * ir_col, 0, 1)
+            if self.render_map(rgb, f"IR Sandwich — Jet IR10.5 Blend {bw:.1f}", cat,
+                               f"grpG_sandwich_jet_bw{gi:02d}.png",
+                               ['vis_06','ir_105'], is_rgb=True,
+                               rgb_formula=f"VIS base + Jet IR10.5 cold-top blend={bw:.1f}"):
+                count_success += 1
+
+        # G11–G16: VIS + plasma IR3.8 hotspot blends
+        for gi, bw in enumerate([0.3, 0.5, 0.7, 0.9, 1.0, 0.6], 1):
+            total_attempted += 1
+            ir_col = plt.cm.plasma(norm(ir38, 290, 360))[:, :, :3]
+            hot_mask = np.clip((ir38 - 290.0) / 70.0, 0.0, 1.0)[:, :, np.newaxis] * bw
+            rgb = np.clip((1.0 - hot_mask) * vis_base_g_arr + hot_mask * ir_col, 0, 1)
+            if self.render_map(rgb, f"IR Sandwich — Plasma Hotspot Blend {bw:.1f}", cat,
+                               f"grpG_sandwich_plasma_bw{gi+10:02d}.png",
+                               ['vis_06','ir_38'], is_rgb=True,
+                               rgb_formula=f"VIS base + Plasma IR3.8 hotspot blend={bw:.1f}"):
+                count_success += 1
+
+        # G17–G20: VIS + magma convective zones
+        for gi, (thr, bw) in enumerate([(250,0.5),(240,0.7),(230,0.9),(220,1.0)], 1):
+            total_attempted += 1
+            ir_col = plt.cm.magma_r(norm(ir105, 190, thr))[:, :, :3]
+            cold_mask = np.clip((float(thr) - ir105) / max(float(thr)-190.0, 1.0), 0.0, 1.0)[:, :, np.newaxis] * bw
+            rgb = np.clip((1.0 - cold_mask) * vis_base_g_arr + cold_mask * ir_col, 0, 1)
+            if self.render_map(rgb, f"Convective Sandwich — Magma Thr={thr}K Blend={bw}", cat,
+                               f"grpG_sandwich_magma_thr{thr}_bw{gi+16:02d}.png",
+                               ['vis_06','ir_105'], is_rgb=True,
+                               rgb_formula=f"VIS + Magma IR10.5<{thr}K blend={bw}"):
+                count_success += 1
+
+        # G21–G24: RdBu split-window diff sandwiches
+        for gi, bw in enumerate([0.4, 0.6, 0.8, 1.0], 1):
+            total_attempted += 1
+            diff_col = plt.cm.RdBu_r(norm(diff_38_105, -15, 25))[:, :, :3]
+            diff_mask = np.clip(np.abs(diff_38_105) / 25.0, 0.0, 1.0)[:, :, np.newaxis] * bw
+            rgb = np.clip((1.0 - diff_mask) * vis_base_g_arr + diff_mask * diff_col, 0, 1)
+            if self.render_map(rgb, f"Split-Window Sandwich — RdBu Blend {bw}", cat,
+                               f"grpG_sandwich_rdbu_bw{gi+20:02d}.png",
+                               ['vis_06','ir_38','ir_105'], is_rgb=True,
+                               rgb_formula=f"VIS + RdBu_r ΔBT(3.8-10.5) blend={bw}"):
+                count_success += 1
+
+        # ================================================================
+        # GROUP H — SPECTRAL RATIO RGB COMPOSITES (23 composites)
+        # ================================================================
+        ratios = [
+            (ndvi_proxy,    'NDVI',    -0.5, 0.8),
+            (ndsi_proxy,    'NDSI',    -0.5, 0.9),
+            (optical_dep,   'OptDep',   0.5, 6.0),
+            (ir38_solar,    'SolarIR',  0.0, 100.0),
+            (ir38/np.where(ir105>0,ir105,1), 'BTratio', 0.6, 1.1),
+            (nir22/np.where(vis06>0,vis06,1),'NIR_VIS_ratio',0.2,3.0),
+        ]
+        base_chs = [
+            (vis06, 'VIS', 0, 100),
+            (nir22, 'NIR', 0, 70),
+            (ir105, 'IR10.5', 200, 320),
+            (ir38,  'IR3.8',  185, 340),
+        ]
+        h_count = 0
+        # All ratio×base_ch combos as R+B, G from base_ch
+        for hi, (ra, rn, rlo, rhi) in enumerate(ratios):
+            for bi, (bc, bn, blo, bhi) in enumerate(base_chs):
+                if h_count >= 23:
+                    break
+                total_attempted += 1
+                h_count += 1
+                r = norm(ra, rlo, rhi)
+                gch = norm(bc, blo, bhi)
+                b = norm(ra, rlo, rhi, gamma=0.6)
+                rgb = np.dstack([r, gch, b])
+                if self.render_map(rgb, f"Spectral Ratio — R:{rn} G:{bn}", cat,
+                                   f"grpH_ratio_{h_count:02d}_{rn}_{bn[:5]}.png",
+                                   ['vis_06','nir_22','ir_38','ir_105'], is_rgb=True,
+                                   rgb_formula=f"R:{rn}[{rlo},{rhi}] G:{bn} B:{rn}(γ0.6)"):
+                    count_success += 1
+            if h_count >= 23:
+                break
+
+        # ================================================================
+        # GROUP I — MULTI-TEMPORAL DIFFERENTIAL COMPOSITES (24 composites)
+        # Uses secondary cycle (0071) data if available, else spatial gradients
+        # ================================================================
+        if 'ir_105' in self.secondary_channels_data and 'vis_06' in self.secondary_channels_data:
+            dt_ir  = self.channels_data['ir_105'] - self.secondary_channels_data['ir_105']
+            dt_vis = self.channels_data['vis_06'] - self.secondary_channels_data['vis_06']
+        else:
+            dt_ir  = ir105 - np.roll(ir105, 5, axis=1)
+            dt_vis = vis06 - np.roll(vis06, 5, axis=1)
+
+        temporal_combos = [
+            (ir105, dt_ir, dt_vis,   'I01','IR10.5 / ΔIR / ΔVIS'),
+            (vis06, dt_vis, dt_ir,   'I02','VIS / ΔVIS / ΔIR'),
+            (dt_ir, ir105, vis06,    'I03','ΔIR / IR10.5 / VIS'),
+            (dt_vis, vis06, ir105,   'I04','ΔVIS / VIS / IR10.5'),
+            (dt_ir, dt_vis, ir105,   'I05','ΔIR / ΔVIS / IR10.5'),
+            (dt_vis, dt_ir, vis06,   'I06','ΔVIS / ΔIR / VIS'),
+            (ir105, vis06, dt_ir,    'I07','IR10.5 / VIS / ΔIR'),
+            (vis06, ir105, dt_vis,   'I08','VIS / IR10.5 / ΔVIS'),
+            (dt_ir, vis06, nir22,    'I09','ΔIR / VIS / NIR'),
+            (dt_vis, nir22, ir38,    'I10','ΔVIS / NIR / IR38'),
+            (ir38, dt_ir, dt_vis,    'I11','IR38 / ΔIR / ΔVIS'),
+            (nir22, dt_vis, dt_ir,   'I12','NIR / ΔVIS / ΔIR'),
+            (320-ir105, dt_ir, vis06,'I13','IR10inv / ΔIR / VIS'),
+            (320-ir105, dt_vis, nir22,'I14','IR10inv / ΔVIS / NIR'),
+            (dt_ir, 320-ir105, nir22,'I15','ΔIR / IR10inv / NIR'),
+            (dt_vis, 320-ir38, vis06,'I16','ΔVIS / IR38inv / VIS'),
+            (320-ir38, dt_ir, nir22, 'I17','IR38inv / ΔIR / NIR'),
+            (diff_38_105, dt_ir, vis06,'I18','ΔBT / ΔIR / VIS'),
+            (diff_38_105, dt_vis, nir22,'I19','ΔBT / ΔVIS / NIR'),
+            (dt_ir, diff_38_105, nir22,'I20','ΔIR / ΔBT / NIR'),
+            (dt_vis, diff_38_105, vis06,'I21','ΔVIS / ΔBT / VIS'),
+            (ndvi_proxy, dt_ir, vis06,'I22','NDVI / ΔIR / VIS'),
+            (ndvi_proxy, dt_vis, ir105,'I23','NDVI / ΔVIS / IR10'),
+            (ndsi_proxy, dt_ir, vis06,'I24','NDSI / ΔIR / VIS'),
+        ]
+        for rv, gv, bv, fname, formula in temporal_combos:
+            total_attempted += 1
+            r = norm(rv, -20, 20) if 'Δ' in formula.split('/')[0] else norm(rv, 0, 320)
+            gch = norm(gv, -20, 20) if 'Δ' in formula.split('/')[1] else norm(gv, 0, 320)
+            b = norm(bv, -20, 20) if 'Δ' in formula.split('/')[-1] else norm(bv, 0, 320)
+            # Clamp to valid range regardless
+            r = np.clip(r, 0, 1); gch = np.clip(gch, 0, 1); b = np.clip(b, 0, 1)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"Temporal Differential — {formula}", cat,
+                               f"grp{fname}_temporal.png",
+                               ['vis_06','nir_22','ir_38','ir_105'], is_rgb=True,
+                               rgb_formula=formula):
+                count_success += 1
+
+        # ================================================================
+        # GROUP J — ENHANCED AESTHETIC COMPOSITES (20 composites)
+        # ================================================================
+        aesthetic_combos = [
+            # Warm fire & desert tones (R-heavy)
+            (ir38,185,340, 0.9,  vis06,0,100,0.5,  nir22,0,50,0.6,  'J01','FireDesert_IR38_VIS_NIR'),
+            (ir38,200,360, 1.2,  ir105,200,300,0.8, vis06,0,80,0.5,  'J02','ThermalHot_IR38_IR10_VIS'),
+            (ir38_solar,0,100,1.0,ir38,240,330,0.7,  vis06,0,80,0.5,  'J03','SolarHot_IRsol_IR38_VIS'),
+            (vis06,0,100,1.5, ir38,270,340,0.8, nir22,0,60,0.5,      'J04','Warm_VIS_IR38_NIR'),
+            (diff_38_105,0,40,1.0, ir38,280,360,0.9, vis06,0,80,0.6, 'J05','Anomaly_dBT_IR38_VIS'),
+            # Deep ocean blues (B-heavy)
+            (vis06,0,20,0.5,  nir22,0,15,0.5, 320-ir105,60,130,1.2,  'J06','OceanBlue_VIS_NIR_IR10inv'),
+            (nir22,0,30,0.5,  vis06,0,25,0.5, 320-ir105,50,130,1.5,  'J07','OceanDeep_NIR_VIS_IR10inv'),
+            (ndsi_proxy,-0.3,0.2,0.5,vis06,0,30,0.6,320-ir105,60,130,1.3,'J08','ColdOcean_NDSI_VIS_IR10inv'),
+            # Arctic whites (high-stretch cold tops)
+            (320-ir105,70,130,2.0, 320-ir38,60,130,2.0, vis06,40,100,1.5, 'J09','Arctic_IR10inv_IR38inv_VIS'),
+            (vis06,50,100,2.0, 320-ir105,80,130,2.0, nir22,30,80,1.5,     'J10','Polar_VIS_IR10inv_NIR'),
+            (ndsi_proxy,0.3,0.9,2.0,320-ir105,70,130,1.5,vis06,50,100,2.0,'J11','Snow_NDSI_IR10inv_VIS'),
+            (320-ir38,70,130,2.0,ndsi_proxy,0.3,0.9,2.0,vis06,60,100,1.8, 'J12','IceWhite_IR38inv_NDSI_VIS'),
+            # Tropical greens (vegetation ratio)
+            (ndvi_proxy,0.2,0.7,1.2, vis06,20,80,1.0, nir22,20,70,1.0,    'J13','TropGreen_NDVI_VIS_NIR'),
+            (nir22,10,60,1.3, ndvi_proxy,0.1,0.7,1.2, vis06,10,70,0.9,    'J14','Veg_NIR_NDVI_VIS'),
+            (vis06,10,70,0.9, nir22,15,65,1.2, ndvi_proxy,0.1,0.7,1.3,    'J15','GreenEarth_VIS_NIR_NDVI'),
+            # Purple/ultraviolet aesthetic (convective deep clouds)
+            (320-ir105,70,130,1.5, diff_38_105,-5,25,1.0, vis06,0,60,0.7, 'J16','DeepConv_IR10inv_dBT_VIS'),
+            (diff_38_105,-5,25,1.2,320-ir105,70,130,1.5, nir22,0,50,0.8,  'J17','ConvPlume_dBT_IR10inv_NIR'),
+            # Golden sunrise tones
+            (ir38,250,330,1.3, vis06,20,90,1.1, 320-ir105,40,120,0.8,     'J18','Golden_IR38_VIS_IR10inv'),
+            (vis06,20,90,1.3, ir38_solar,10,80,1.2, nir22,10,60,0.9,      'J19','Sunrise_VIS_IRsolar_NIR'),
+            # Full-spectrum showcase
+            (vis06,0,100,1.2, nir22,0,70,1.1, diff_38_105,-10,30,1.0,     'J20','Showcase_VIS_NIR_dBT'),
+        ]
+        for rv,rlo,rhi,rg, gv,glo,ghi,gg, bv,blo,bhi,bg, fname, formula in aesthetic_combos:
+            total_attempted += 1
+            r = norm(rv, rlo, rhi, gamma=rg)
+            gch = norm(gv, glo, ghi, gamma=gg)
+            b = norm(bv, blo, bhi, gamma=bg)
+            rgb = np.dstack([r, gch, b])
+            if self.render_map(rgb, f"Aesthetic Composite — {formula}", cat,
+                               f"grp{fname}_aesthetic.png",
+                               ['vis_06','nir_22','ir_38','ir_105'], is_rgb=True,
+                               rgb_formula=formula):
+                count_success += 1
+
+        t_total = time.time() - t_start
+        print(f"\n[EXT] Extended RGB composites done!")
+        print(f" -> Attempted: {total_attempted} | Succeeded: {count_success} | Failed: {total_attempted - count_success}")
+        print(f" -> Runtime: {t_total:.2f}s")
+        return count_success
+
     def generate_all_products(self):
         """Generate all 42 distinct meteorological products."""
         print(f"\n[3/4] Mass-generating 42 meteorological product images...")
@@ -696,6 +1197,7 @@ class MTGProductPipeline:
         cycle_files = self.discover_data()
         self.load_channels(cycle_files)
         self.generate_all_products()
+        self.generate_235_rgb_composites()
         self.write_manifest()
 
 
