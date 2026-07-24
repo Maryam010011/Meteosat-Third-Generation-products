@@ -1,0 +1,24 @@
+product_type,product_name,composite_id,cycle_id,timestamp,filename,filepath,status,is_approx,ref
+channel,VIS 0.6 µm,vis_06,0052,2026-07-18 08:30 UTC,vis_06_20260718_0830.png,channels\vis_06\vis_06_20260718_0830.png,SUCCESS,no,FCI L1C calibrated reflectance
+channel,NIR 2.2 µm,nir_22,0052,2026-07-18 08:30 UTC,nir_22_20260718_0830.png,channels\nir_22\nir_22_20260718_0830.png,SUCCESS,no,FCI L1C calibrated reflectance
+channel,IR 3.8 µm,ir_38,0052,2026-07-18 08:30 UTC,ir_38_20260718_0830.png,channels\ir_38\ir_38_20260718_0830.png,SUCCESS,no,FCI L1C calibrated brightness_temp
+channel,IR 10.5 µm,ir_105,0052,2026-07-18 08:30 UTC,ir_105_20260718_0830.png,channels\ir_105\ir_105_20260718_0830.png,SUCCESS,no,FCI L1C calibrated brightness_temp
+composite,Day Microphysics RGB (approx: NIR2.2 sub for VIS0.8),day_microphysics_approx,0052,2026-07-18 08:30 UTC,day_microphysics_approx_20260718_0830.png,composites\day_microphysics_approx\day_microphysics_approx_20260718_0830.png,SUCCESS,yes,Approximation of EUMETSAT Day Microphysics RGB; VIS0.8 unavailable in this HRFI dataset
+composite,Severe Convection Proxy RGB,convection_proxy,0052,2026-07-18 08:30 UTC,convection_proxy_20260718_0830.png,composites\convection_proxy\convection_proxy_20260718_0830.png,SUCCESS,yes,"Convection proxy composite using VIS0.6, IR10.5, IR3.8; standard approach when WV channels unavailable"
+channel,VIS 0.6 µm,vis_06,0071,2026-07-13 11:40 UTC,vis_06_20260713_1140.png,channels\vis_06\vis_06_20260713_1140.png,SUCCESS,no,FCI L1C calibrated reflectance
+channel,NIR 2.2 µm,nir_22,0071,2026-07-13 11:40 UTC,nir_22_20260713_1140.png,channels\nir_22\nir_22_20260713_1140.png,SUCCESS,no,FCI L1C calibrated reflectance
+channel,IR 3.8 µm,ir_38,0071,2026-07-13 11:40 UTC,ir_38_20260713_1140.png,channels\ir_38\ir_38_20260713_1140.png,SUCCESS,no,FCI L1C calibrated brightness_temp
+channel,IR 10.5 µm,ir_105,0071,2026-07-13 11:40 UTC,ir_105_20260713_1140.png,channels\ir_105\ir_105_20260713_1140.png,SUCCESS,no,FCI L1C calibrated brightness_temp
+composite,Day Microphysics RGB (approx: NIR2.2 sub for VIS0.8),day_microphysics_approx,0071,2026-07-13 11:40 UTC,day_microphysics_approx_20260713_1140.png,composites\day_microphysics_approx\day_microphysics_approx_20260713_1140.png,SUCCESS,yes,Approximation of EUMETSAT Day Microphysics RGB; VIS0.8 unavailable in this HRFI dataset
+composite,Severe Convection Proxy RGB,convection_proxy,0071,2026-07-13 11:40 UTC,convection_proxy_20260713_1140.png,composites\convection_proxy\convection_proxy_20260713_1140.png,SUCCESS,yes,"Convection proxy composite using VIS0.6, IR10.5, IR3.8; standard approach when WV channels unavailable"
+derived,Low Cloud & Fog Difference (IR3.8 − IR10.5),diff_ir38_ir105_lowcloud_fog,0052,2026-07-18 08:30 UTC,diff_ir38_ir105_lowcloud_fog.png,derived_products\diff_ir38_ir105_lowcloud_fog.png,SUCCESS,no,Derived index/mask product
+derived,SWIR Moisture & Ice Content Proxy,index_swir_moisture_proxy,0052,2026-07-18 08:30 UTC,index_swir_moisture_proxy.png,derived_products\index_swir_moisture_proxy.png,SUCCESS,no,Derived index/mask product
+derived,Normalized Difference Snow Index (NDSI Proxy),index_ndsi_proxy,0052,2026-07-18 08:30 UTC,index_ndsi_proxy.png,derived_products\index_ndsi_proxy.png,SUCCESS,no,Derived index/mask product
+derived,Cloud / Clear-Sky Binary Segmentation Mask,mask_cloud_binary,0052,2026-07-18 08:30 UTC,mask_cloud_binary.png,derived_products\mask_cloud_binary.png,SUCCESS,no,Derived index/mask product
+derived,Cloud Top Height Proxy (Lapse Rate Model),proxy_cloud_top_height,0052,2026-07-18 08:30 UTC,proxy_cloud_top_height.png,derived_products\proxy_cloud_top_height.png,SUCCESS,no,Derived index/mask product
+derived,Deep Convective Core Mask (<210K / −63°C),mask_deep_convective_cores,0052,2026-07-18 08:30 UTC,mask_deep_convective_cores.png,derived_products\mask_deep_convective_cores.png,SUCCESS,no,Derived index/mask product
+derived,Fire & Hotspot Thermal Anomaly Index,index_thermal_fire_anomaly,0052,2026-07-18 08:30 UTC,index_thermal_fire_anomaly.png,derived_products\index_thermal_fire_anomaly.png,SUCCESS,no,Derived index/mask product
+derived,Sun Glint & Marine Reflection Proxy,proxy_sunglint_marine,0052,2026-07-18 08:30 UTC,proxy_sunglint_marine.png,derived_products\proxy_sunglint_marine.png,SUCCESS,no,Derived index/mask product
+derived,Cloud Optical Depth & Particle Scattering Proxy,proxy_optical_depth,0052,2026-07-18 08:30 UTC,proxy_optical_depth.png,derived_products\proxy_optical_depth.png,SUCCESS,no,Derived index/mask product
+derived,Multi-Temporal BT Shift (Cycle 0052 − 0071),temporal_ir105_change,0052,2026-07-18 08:30 UTC,temporal_ir105_change.png,derived_products\temporal_ir105_change.png,SUCCESS,no,Derived index/mask product
+derived,Multi-Temporal VIS Reflectance Shift (Cycle 0052 − 0071),temporal_vis06_change,0052,2026-07-18 08:30 UTC,temporal_vis06_change.png,derived_products\temporal_vis06_change.png,SUCCESS,no,Derived index/mask product
