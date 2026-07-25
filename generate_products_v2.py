@@ -904,7 +904,7 @@ class MTGMultiCyclePipeline:
 
   Composite products:
     Attempted : {all_comp_success + all_comp_skipped}
-    Generated : {all_comp_success} (only composites requiring ≤4 available channels)
+    Generated : {all_comp_success} (only composites requiring <= 4 available channels)
     Skipped   : {all_comp_skipped} (missing channels or day/night mismatch)
     Standard composites skipped (missing WV / NIR1.6 / IR12.3 etc.):
       natural_colours, airmass, dust, ash, microphysics_24hr,
@@ -914,17 +914,17 @@ class MTGMultiCyclePipeline:
   Derived products (pipeline-level, 1 set):  {derived_count}
 
   TOTAL PRODUCTS GENERATED               : {total}
-{'─'*70}
+----------------------------------------------------------------------
   SHORTFALL vs ~200 target:
     {total} actual vs ~200 target = shortfall of {max(0, 200 - total)}
     To reach 200 via channel products alone:
-      Need ~{int(np.ceil(200 / 4))} cycles × 4 channels = 200 (currently only {cycle_count} cycles).
+      Need ~{int(np.ceil(200 / 4))} cycles x 4 channels = 200 (currently only {cycle_count} cycles).
     To reach 200 with 4 channels + composites (~3 per cycle):
       Need ~{int(np.ceil((200 - derived_count) / (4 + 3)))} cycles
       (currently only {cycle_count} available).
     This is a data availability limitation, NOT a pipeline limitation.
     No padding with fake parameter variants has been done.
-{'='*70}
+======================================================================
 """)
 
     # -----------------------------------------------------------------------
